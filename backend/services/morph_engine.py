@@ -92,6 +92,15 @@ def should_double_consonant(word: str) -> bool:
         return True
     return False
 
+def is_valid_word(word: str) -> bool:
+    """Check if a word exists in WordNet (basic validation)"""
+    try:
+        from nltk.corpus import wordnet as wn
+        return len(wn.synsets(word)) > 0
+    except:
+        # Fallback: basic heuristics
+        return len(word) >= 3 and word.isalpha()
+
 def generate_variants(word: str) -> List[str]:
     variants = set()
     base = word.lower()
@@ -111,87 +120,198 @@ def generate_variants(word: str) -> List[str]:
     # Gen common variants from the base
     working_base = base_from_suffix if base_from_suffix != base else base
     
+    # Generate prefix variants (for words like re-act, trans-act)
+    common_prefixes = ['re', 'un', 'trans', 'inter', 'pre', 'post', 'over', 
+                       'under', 'counter', 'de', 'dis', 'mis', 'sub', 'super',
+                       'co', 'pro', 'con', 'ex', 'en']
+    
+    for prefix in common_prefixes:
+        prefix_variant = prefix + working_base
+        if len(prefix_variant) > 4:  # Avoid very short words
+            variants.add(prefix_variant)
+    
     needs_doubling = should_double_consonant(working_base)
     
     # Add -ing form
     if not working_base.endswith('ing'):
         if needs_doubling:
             variants.add(working_base + working_base[-1] + 'ing')  # run → running
-        variants.add(working_base + 'ing')
-        # Handle e-dropping
-        if working_base.endswith('e'):
-            variants.add(working_base[:-1] + 'ing')
+        elif working_base.endswith('e'):
+            variants.add(working_base[:-1] + 'ing')  # make → making
+        else:
+            variants.add(working_base + 'ing')
     
     # Add -ed form
     if not working_base.endswith('ed'):
         if needs_doubling:
             variants.add(working_base + working_base[-1] + 'ed')  # stop → stopped
-        variants.add(working_base + 'ed')
-        if working_base.endswith('e'):
-            variants.add(working_base[:-1] + 'ed')
+        elif working_base.endswith('e'):
+            variants.add(working_base + 'd')  # make → made
+        else:
+            variants.add(working_base + 'ed')
     
     # Add -er form
     if not working_base.endswith('er'):
         if needs_doubling:
-            variants.add(working_base + working_base[-1] + 'er')  # strip → stripper
-        variants.add(working_base + 'er')
-        if working_base.endswith('e'):
-            variants.add(working_base[:-1] + 'er')
+            variants.add(working_base + working_base[-1] + 'er')  # run → runner
+        elif working_base.endswith('e'):
+            variants.add(working_base + 'r')  # large → larger
+        else:
+            variants.add(working_base + 'er')
     
     # Add -s form
     if not working_base.endswith('s'):
         if working_base.endswith(('s', 'x', 'z', 'ch', 'sh')):
             variants.add(working_base + 'es')
+        elif working_base.endswith('y') and len(working_base) > 1 and working_base[-2] not in 'aeiou':
+            variants.add(working_base[:-1] + 'ies')  # happy → happies
         else:
             variants.add(working_base + 's')
     
-    # Add -tion form
+    # Add -tion/-sion/-ation forms
+    if len(working_base) > 2:
+        if working_base.endswith('e'):
+            variants.add(working_base[:-1] + 'ion')  # create → creation
+            variants.add(working_base[:-1] + 'ation')  # create → creation
+        elif working_base.endswith('t'):
+            variants.add(working_base + 'ion')  # act → action
+            variants.add(working_base + 'ation')  # act → actation (rare but possible)
+        elif working_base.endswith('d'):
+            variants.add(working_base[:-1] + 'sion')  # decide → decision
+        else:
+            variants.add(working_base + 'tion')  # act → action
+            variants.add(working_base + 'ation')  # act → actation
+    
+    # Add complex derivations with prefix + suffix (like trans-act-ion)
+    if len(working_base) > 2:
+        important_prefixes = ['re', 'trans', 'inter', 'counter', 'over', 'under', 'pre', 'post', 'de', 'pro', 'con', 'ex']
+        important_suffixes = ['ion', 'tion', 'ation', 'ive', 'or', 'er', 'al', 'ual', 'ing', 'ed']
+        
+        for prefix in important_prefixes:
+            for suffix in important_suffixes:
+                # Create complex words like trans-act-ion
+                if working_base.endswith('e') and suffix.startswith(('i', 'a')):
+                    complex_word = prefix + working_base[:-1] + suffix
+                elif working_base.endswith('t') and suffix in ['ion', 'tion', 'ation']:
+                    complex_word = prefix + working_base + suffix
+                else:
+                    complex_word = prefix + working_base + suffix
+                
+                # Only add if reasonable length (avoid too long words)
+                if 6 <= len(complex_word) <= 15:
+                    variants.add(complex_word)
+    
+    # Add -or/-er agent forms
+    if len(working_base) > 2:
+        if working_base.endswith('e'):
+            variants.add(working_base[:-1] + 'or')  # create → creator
+        else:
+            variants.add(working_base + 'or')  # act → actor
+    
+    # Add -ive adjective forms
+    if len(working_base) > 2:
+        if working_base.endswith('e'):
+            variants.add(working_base[:-1] + 'ive')  # create → creative
+        elif working_base.endswith('t'):
+            variants.add(working_base + 'ive')  # act → active
+        else:
+            variants.add(working_base + 'ive')
+    
+    # Add -ity/-ty noun forms
     if len(working_base) > 3:
         if working_base.endswith('e'):
-            variants.add(working_base[:-1] + 'tion')
+            variants.add(working_base[:-1] + 'ity')  # active → activity
         else:
-            variants.add(working_base + 'tion')
-            variants.add(working_base + 'ation')
+            variants.add(working_base + 'ity')  # active → activity
     
-    # Add -ly form
-    variants.add(working_base + 'ly')
+    # Add -ly form (for adjectives)
+    if len(working_base) > 3:
+        if working_base.endswith('y'):
+            variants.add(working_base[:-1] + 'ily')  # happy → happily
+        elif working_base.endswith('le'):
+            variants.add(working_base[:-2] + 'ly')  # simple → simply
+        else:
+            variants.add(working_base + 'ly')
     
-    # Add -ness form
-    variants.add(working_base + 'ness')
+    # Add -ness form (for adjectives)
+    if len(working_base) > 3:
+        if working_base.endswith('y'):
+            variants.add(working_base[:-1] + 'iness')  # happy → happiness
+        else:
+            variants.add(working_base + 'ness')
     
-    return list(variants)
+    # Filter out invalid words
+    valid_variants = [v for v in variants if is_valid_word(v)]
+    
+    # Return valid variants, or if none found, return top variants by length preference
+    if valid_variants:
+        return valid_variants
+    else:
+        # Prefer variants that are reasonable length (not too short, not too long)
+        sorted_variants = sorted(variants, key=lambda x: abs(len(x) - 8))
+        return sorted_variants[:15]
 
 def get_morphological_family(word: str) -> List[Tuple[str, str, float]]:
     """
-    Get morphological word family.
+    Get morphological word family with validation and recursive generation.
     Returns list of (word, relation_type, score) tuples.
     """
     results = []
-    seen = set()
+    seen = set([word.lower()])
     
     # Get base forms using recursive stripping
     suffix_bases = strip_suffix_recursive(word)
     prefix_bases = strip_prefix_recursive(word)
     
-    # Add all intermediate base forms
+    # Add all intermediate base forms (validated)
     for i, base in enumerate(suffix_bases[1:], 1):  # Skip first (original word)
-        if base not in seen and len(base) > 2:
-            # Score decreases with depth: 0.95, 0.90, 0.85...
+        if base not in seen and len(base) > 2 and is_valid_word(base):
             score = 0.95 - (i - 1) * 0.05
             results.append((base, "base_form", max(score, 0.80)))
             seen.add(base)
     
     for i, base in enumerate(prefix_bases[1:], 1):
-        if base not in seen and len(base) > 2:
+        if base not in seen and len(base) > 2 and is_valid_word(base):
             score = 0.95 - (i - 1) * 0.05
             results.append((base, "base_form", max(score, 0.80)))
             seen.add(base)
     
+    # Generate variants from the original word
     variants = generate_variants(word)
     
     for variant in variants:
-        if variant != word.lower() and variant not in seen and len(variant) > 2:
-            results.append((variant, "morphological", 0.80))
+        if variant not in seen and len(variant) > 2:
+            results.append((variant, "morphological", 0.85))
             seen.add(variant)
     
-    return results[:20] 
+    # Generate variants from base forms (2nd level derivations)
+    # Example: act -> action -> transaction
+    for base in suffix_bases[1:2]:  # Only first base to avoid explosion
+        if len(base) > 2:
+            base_variants = generate_variants(base)
+            for variant in base_variants:
+                if variant not in seen and len(variant) > 2:
+                    results.append((variant, "morphological", 0.80))
+                    seen.add(variant)
+    
+    # Generate explicit complex derivations (prefix + root + suffix)
+    # This ensures we capture words like "transaction" from "act"
+    working_base = word.lower()
+    complex_prefixes = ['trans', 're', 'inter', 'counter', 'ex', 'pro', 'con']
+    complex_suffixes = ['ion', 'tion', 'ation', 'ive', 'or', 'er', 'al']
+    
+    for prefix in complex_prefixes:
+        for suffix in complex_suffixes:
+            # Generate prefix + base + suffix
+            if working_base.endswith('t') and suffix in ['ion', 'tion', 'ation']:
+                complex_word = prefix + working_base + suffix
+            elif working_base.endswith('e') and suffix.startswith(('i', 'a')):
+                complex_word = prefix + working_base[:-1] + suffix
+            else:
+                complex_word = prefix + working_base + suffix
+            
+            if complex_word not in seen and 6 <= len(complex_word) <= 15:
+                results.append((complex_word, "morphological", 0.82))
+                seen.add(complex_word)
+    
+    return results[:40]  # Increased limit for more diversity 

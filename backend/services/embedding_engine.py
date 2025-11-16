@@ -16,37 +16,82 @@ def get_model():
         _model = SentenceTransformer('all-MiniLM-L6-v2')
     return _model
 
-def get_embedding_neighbors(word: str, top_k: int = 15) -> List[Tuple[str, str, float]]:
+def get_embedding_neighbors(word: str, top_k: int = 20) -> List[Tuple[str, str, float]]:
     """
-    Get semantically similar words using embeddings
+    Get semantically similar words using embeddings with expanded vocabulary.
     Returns list of tuples of (word, relation_type, score)
     """
     model = get_model()
     
-    # For now: Common English words vocab (subset for speed)
-    # Later dev: load a full vocab list, may be from db
-    vocab = [
-        word,  # original word
-        # common related words will be added by morphological engine
-    ]
-    
+    # Expanded vocabulary for better coverage
     common_words = [
-        "run", "running", "ran", "runner", "runs",
-        "walk", "walking", "walked", "walker",
-        "act", "action", "acting", "actor", "active",
-        "create", "creation", "creative", "creator",
-        "think", "thinking", "thought", "thinker",
+        # Movement/Action
+        "run", "running", "ran", "runner", "runs", "jog", "sprint", "dash", "race",
+        "walk", "walking", "walked", "walker", "stroll", "march", "stride",
+        "move", "moving", "movement", "moved", "motion", "shift",
+        
+        # Action/Activity
+        "act", "action", "acting", "actor", "active", "activity", "activate",
+        "react", "reaction", "reactive", "interact", "interaction", "transaction",
+        "do", "doing", "done", "deed",
+        "perform", "performance", "performer",
+        
+        # Creation
+        "create", "creation", "creative", "creator", "creativity",
+        "make", "making", "maker", "made",
+        "build", "building", "builder", "built",
+        "form", "forming", "formation", "formed",
+        "construct", "construction", "constructive",
+        
+        # Cognition
+        "think", "thinking", "thought", "thinker", "thoughtful",
+        "consider", "consideration", "considerate",
+        "reflect", "reflection", "reflective",
+        "understand", "understanding",
+        "know", "knowing", "knowledge", "known",
+        
+        # Communication
         "write", "writing", "written", "writer",
         "read", "reading", "reader",
-        "play", "playing", "player", "played",
+        "speak", "speaking", "speaker", "speech",
+        "talk", "talking", "talked",
+        "say", "saying", "said",
+        
+        # Work/Effort
         "work", "working", "worker", "worked",
-        "build", "building", "builder", "built",
+        "labor", "laborer",
+        "effort", "endeavor",
+        "try", "trying", "tried",
+        
+        # Learning/Teaching
         "teach", "teaching", "teacher", "taught",
         "learn", "learning", "learner", "learned",
-        "help", "helping", "helper", "helped",
-        "move", "moving", "movement", "moved",
+        "study", "studying", "student", "studied",
+        "educate", "education", "educational",
+        
+        # Support
+        "help", "helping", "helper", "helped", "helpful",
+        "assist", "assistance", "assistant",
+        "support", "supporting", "supporter", "supported",
+        
+        # Change/Growth
         "change", "changing", "changed",
         "grow", "growing", "growth", "grown",
+        "develop", "development", "developer", "developed",
+        "evolve", "evolution", "evolutionary",
+        "transform", "transformation",
+        
+        # Entertainment
+        "play", "playing", "player", "played",
+        "game", "gaming", "gamer",
+        "enjoy", "enjoying", "enjoyment", "enjoyed",
+        
+        # Emotion
+        "happy", "happiness", "happily",
+        "sad", "sadness", "sadly",
+        "joy", "joyful", "joyfully",
+        "love", "loving", "loved", "lovely",
+        "feel", "feeling", "felt",
     ]
     
     vocab = [w for w in common_words if w.lower() != word.lower()]
@@ -58,20 +103,20 @@ def get_embedding_neighbors(word: str, top_k: int = 15) -> List[Tuple[str, str, 
         word_embedding = model.encode([word])[0]
         vocab_embeddings = model.encode(vocab)
         
-        # Cal cosine similarities
+        # Calculate cosine similarities
         similarities = []
         for i, v_word in enumerate(vocab):
             sim = 1 - cosine(word_embedding, vocab_embeddings[i])
             similarities.append((v_word, sim))
         
-        # highest score first
+        # Sort by highest score first
         similarities.sort(key=lambda x: x[1], reverse=True)
         
-        # Return top_k results as (word, type, score) tuples
+        # Return top_k results with higher threshold
         results = []
         for v_word, score in similarities[:top_k]:
-            if score > 0.3:
-                results.append((v_word, "embedding", float(score)))
+            if score > 0.4:  # Increased threshold for better quality
+                results.append((v_word, "semantic", float(score * 0.85)))  # Scale down slightly
         
         return results
     

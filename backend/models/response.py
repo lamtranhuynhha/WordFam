@@ -20,3 +20,6 @@ class GraphResponse(BaseModel):
     nodes: List[GraphNode]
     edges: List[GraphEdge]
     meta: GraphMeta
+    synonyms: Optional[List[str]] = []
+    semantic: Optional[List[str]] = []
+    morphological: Optional[List[str]] = []

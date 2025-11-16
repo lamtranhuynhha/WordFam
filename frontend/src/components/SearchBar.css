@@ -76,17 +76,17 @@
 }
 
 .examples-label {
-  color: var(--text-muted);
+  color: #ffffff;
   font-size: 0.9rem;
   font-weight: 500;
 }
 
 .example-chip {
   padding: 0.5rem 1rem;
-  background: rgba(241, 118, 174, 0.15);
+  background: rgba(247, 193, 217, 0.15);
   border: 1px solid rgba(241, 118, 174, 0.3);
   border-radius: 20px;
-  color: var(--accent-light);
+  color: #ffffff;
   font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.2s ease;

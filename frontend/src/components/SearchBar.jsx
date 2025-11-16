@@ -17,7 +17,7 @@ function SearchBar({ onSearch, loading }) {
     onSearch(word)
   }
 
-  const examples = ['run', 'happy', 'create', 'think', 'beautiful']
+  const examples = ['run', 'act', 'create', 'think', 'happy']
 
   return (
     <div className="search-bar-container">

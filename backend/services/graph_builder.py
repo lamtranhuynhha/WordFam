@@ -4,9 +4,11 @@ from .wordnet_engine import get_wordnet_family
 from .embedding_engine import get_embedding_neighbors
 from .morph_engine import get_morphological_family
 from .wolfram_service import get_wolfram_word_family, get_wolfram_info
-from .datamuse_engine import get_datamuse_related, get_word_forms, check_etymology
+from .datamuse_engine import get_datamuse_related, get_word_forms, check_etymology, validate_word
+from .dictionary_service import get_word_definition
 from utils.cache import cached
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +64,9 @@ async def build_word_family_graph(word: str) -> GraphResponse:
     """
     logger.info(f"Building word formation tree for: {word}")
     
-    # Get all word relationships (with performance optimization)
     wordnet_results = get_wordnet_family(word)
     logger.info(f"WordNet found {len(wordnet_results)} results")
     
-    # Use Datamuse API for real word discovery
     try:
         datamuse_results = await get_datamuse_related(word)
         logger.info(f"Datamuse found {len(datamuse_results)} results")
@@ -81,7 +81,6 @@ async def build_word_family_graph(word: str) -> GraphResponse:
         logger.warning(f"Datamuse forms failed: {e}")
         datamuse_forms = []
     
-    # Embeddings can be slow on first load - use with caution
     try:
         embedding_results = get_embedding_neighbors(word)
         logger.info(f"Embeddings found {len(embedding_results)} results")
@@ -92,47 +91,143 @@ async def build_word_family_graph(word: str) -> GraphResponse:
     morph_results = get_morphological_family(word)
     logger.info(f"Morphology found {len(morph_results)} results")
     
-    # Get metadata from Free Dictionary API
+    # Free Dictionary API
     try:
         wolfram_meta = await get_wolfram_info(word)
     except:
         wolfram_meta = {"definition": None, "etymology": None, "usage": None}
     
-    # Separate derivations from synonyms
     derivations = {}
     synonyms = []
     semantic_neighbors = []
     
-    # Priority 1: WordNet derivations (most reliable)
+    logger.info(f"Generating automatic morphological variants for: {word}")
+    auto_variants = []
+    
+    if len(word) >= 4:
+        # For adjectives (happy -> happiness, happily)
+        variants_to_try = [
+            f"{word}ness",      # happiness
+            f"{word}ly",        # happily
+            f"{word}er",        # happier
+            f"{word}est",       # happiest
+            f"un{word}",        # unhappy
+        ]
+        
+        # Handle -y ending (happy -> happiness, happily)
+        if word.endswith('y') and len(word) >= 4:
+            stem = word[:-1]
+            variants_to_try.extend([
+                f"{stem}iness",   # happiness
+                f"{stem}ily",     # happily
+                f"{stem}ier",     # happier
+                f"{stem}iest",    # happiest
+            ])
+        
+        # Handle -e ending (create -> creation, creator)
+        if word.endswith('e') and len(word) >= 4:
+            stem = word[:-1]
+            variants_to_try.extend([
+                f"{stem}ion",     # creation
+                f"{stem}or",      # creator
+                f"{stem}ing",     # creating
+            ])
+        
+        # Validate each variant
+        for variant in variants_to_try:
+            if variant != word:
+                word_exists = await validate_word(variant)
+                if word_exists:
+                    auto_variants.append((variant, 'morphological', 0.92))
+                    logger.info(f"✓ Auto-generated: {variant}")
+    
+    logger.info(f"Generated {len(auto_variants)} automatic variants")
+    
+    # Add auto-generated variants to derivations
+    for w, rel_type, score in auto_variants:
+        if w not in derivations:
+            derivations[w] = (score, [rel_type])
+    
+    # Priority 1: WordNet derivations (validated with etymology)
+    logger.info(f"Processing {len(wordnet_results)} WordNet results")
+    wordnet_added = 0
+    wordnet_rejected = 0
+    
     for w, rel_type, score in wordnet_results:
         if rel_type in ['derivation', 'root']:
-            if w not in derivations:
+            if w == word:  # Root word always accepted
                 derivations[w] = (score, [rel_type])
+                wordnet_added += 1
+            elif w not in derivations:
+                word_lower = w.lower()
+                root_lower = word.lower()
+                
+                if (word_lower.startswith(root_lower) or 
+                    word_lower.endswith(root_lower) or 
+                    root_lower in word_lower):
+
+                    derivations[w] = (score, [rel_type])
+                    wordnet_added += 1
+                    logger.info(f"✓ WordNet derivation: {w}")
+                else:
+                    
+                    is_derived = await check_etymology(w, word)
+                    if is_derived:
+                        derivations[w] = (score, [rel_type])
+                        wordnet_added += 1
+                        logger.info(f"✓ WordNet derivation: {w}")
+                    else:
+                        
+                        wordnet_rejected += 1
+                        logger.debug(f"✗ WordNet: {w} rejected as derivation (treating as synonym)")
+                        if w not in synonyms:
+                            synonyms.append(w)
+        
         elif rel_type == 'synonym':
-            synonyms.append(w)
+            if w not in synonyms:
+                synonyms.append(w)
+        elif rel_type in ['hypernym', 'hyponym', 'related']:
+            
+            if w not in semantic_neighbors:
+                semantic_neighbors.append(w)
     
-    # Priority 2: Datamuse API (real words, validated with etymology)
-    # Limit processing to avoid timeout
+    logger.info(f"WordNet added {wordnet_added} derivations (rejected {wordnet_rejected} false derivations)")
+    
+    # Priority 2: Datamuse API (real words, validated with etymology AND existence)
     logger.info(f"Processing {len(datamuse_results)} Datamuse results")
     datamuse_added = 0
     max_to_check = 30  # Limit to avoid timeout
     for w, rel_type, score in datamuse_results[:max_to_check]:
         if rel_type == 'morphological':
+   
+            word_exists = await validate_word(w)
+            if not word_exists:
+                logger.debug(f"✗ Datamuse: {w} rejected (not a real word)")
+                continue
+            
             is_derived = await check_etymology(w, word)
             if is_derived and w not in derivations:
                 derivations[w] = (score, [rel_type])
                 datamuse_added += 1
                 logger.info(f"✓ Datamuse: {w} (score: {score:.2f})")
         elif rel_type == 'semantic':
-            if w not in synonyms:
+            
+            word_exists = await validate_word(w)
+            if word_exists and w not in synonyms:
                 semantic_neighbors.append(w)
     
     logger.info(f"Datamuse added {datamuse_added} morphological derivations")
     
     logger.info(f"Processing {len(datamuse_forms)} Datamuse forms")
     forms_added = 0
-    max_forms = 20  # Limit to avoid timeout
+    max_forms = 20  
     for w, rel_type, score in datamuse_forms[:max_forms]:
+        
+        word_exists = await validate_word(w)
+        if not word_exists:
+            logger.debug(f"✗ Form: {w} rejected (not a real word)")
+            continue
+            
         is_derived = await check_etymology(w, word)
         if is_derived and w not in derivations:
             derivations[w] = (score, [rel_type])
@@ -141,38 +236,65 @@ async def build_word_family_graph(word: str) -> GraphResponse:
     
     logger.info(f"Datamuse forms added {forms_added} derivations")
     
-    # Priority 3: Morphology (only if validated with etymology)
+    # Priority 3: Morphology (only if validated with etymology AND existence)
     logger.info(f"Processing {len(morph_results)} morphology results")
     morph_added = 0
-    max_morph = 25  # Limit to avoid timeout
+    morph_rejected = 0
+    max_morph = 25  
     for w, rel_type, score in morph_results[:max_morph]:
         if w not in derivations and len(w) > 3:
+            
+            word_exists = await validate_word(w)
+            if not word_exists:
+                morph_rejected += 1
+                logger.debug(f"✗ Morph: {w} rejected (not a real word)")
+                continue
+            
             is_derived = await check_etymology(w, word)
             if is_derived:
                 derivations[w] = (score, [rel_type])
                 morph_added += 1
                 logger.info(f"✓ Morph: {w} (score: {score:.2f})")
     
-    logger.info(f"Morphology added {morph_added} derivations")
+    logger.info(f"Morphology added {morph_added} derivations (rejected {morph_rejected} fake words)")
     
-    # Priority 4: Embeddings (semantic only)
+    # Priority 4: Embeddings (semantic only, also validate)
     for w, rel_type, score in embedding_results:
         if score > 0.5 and w not in semantic_neighbors:  # High threshold
-            semantic_neighbors.append(w)
+            
+            word_exists = await validate_word(w)
+            if word_exists:
+                semantic_neighbors.append(w)
 
     # Build nodes from derivations only (word formation tree)
-    # Sort by score to get the best derivations first
     sorted_derivations = sorted(derivations.items(), key=lambda x: x[1][0], reverse=True)
     
-    nodes = [GraphNode(id=word, label=word, score=1.0)]
+    # Take top derivations
+    max_nodes = 50 
+    words_to_define = [word] + [w for w, _ in sorted_derivations[:max_nodes] if w != word]
     
-    # Take top derivations (increased limit for more diversity)
-    max_nodes = 50  # Increased from implicit limit
+    logger.info(f"Fetching definitions for {len(words_to_define)} words...")
+    definition_tasks = [get_word_definition(w) for w in words_to_define]
+    definitions = await asyncio.gather(*definition_tasks)
+    
+    word_definitions = {w: d for w, d in zip(words_to_define, definitions)}
+    
+    nodes = [GraphNode(
+        id=word, 
+        label=word, 
+        score=1.0,
+        definition=word_definitions.get(word)
+    )]
+    
     for w, (score, relation_types) in sorted_derivations[:max_nodes]:
         if w != word:
-            nodes.append(GraphNode(id=w, label=w, score=score))
+            nodes.append(GraphNode(
+                id=w, 
+                label=w, 
+                score=score,
+                definition=word_definitions.get(w)
+            ))
     
-    # Build edges for derivations only
     edges = []
     for w, (score, relation_types) in derivations.items():
         if w != word:

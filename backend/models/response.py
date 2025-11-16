@@ -5,6 +5,7 @@ class GraphNode(BaseModel):
     id: str
     label: str
     score: float
+    definition: Optional[str] = None
 
 class GraphEdge(BaseModel):
     source: str

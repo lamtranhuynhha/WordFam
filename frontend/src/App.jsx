@@ -28,20 +28,20 @@ function App() {
       }
 
       const data = await response.json()
-      console.log('📦 Received data:', data)
+      console.log('Received data:', data)
       console.log('  - Nodes:', data.nodes?.length || 0)
       console.log('  - Edges:', data.edges?.length || 0)
       console.log('  - Synonyms:', data.synonyms?.length || 0)
       
       setGraphData(data)
-      console.log('✅ Graph data set successfully')
+      console.log('Graph data set successfully')
     } catch (err) {
       console.error('❌ Search error:', err)
       setError(err.message)
       setGraphData(null)
     } finally {
       setLoading(false)
-      console.log('🏁 Search completed')
+      console.log('Search completed')
     }
   }
 
@@ -53,7 +53,7 @@ function App() {
             <span className="title-word">Word</span>
             <span className="title-fam">Fam</span>
           </h1>
-          <p className="app-subtitle">Explore word families through interactive graphs</p>
+          <p className="app-subtitle">Explore word families through interactive graph</p>
         </div>
       </header>
 
@@ -92,7 +92,7 @@ function App() {
       </main>
 
       <footer className="app-footer">
-        <p>Powered by Wolfram Language + Python NLP</p>
+        <p>Developed during the CS Girlies Hackathon 2025</p>
       </footer>
     </div>
   )

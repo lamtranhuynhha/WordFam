@@ -40,3 +40,65 @@
   border-radius: 50%;
   border: 2px solid var(--primary-dark);
 }
+
+.node-tooltip {
+  position: absolute;
+  background: rgba(35, 18, 20, 0.98);
+  border: 2px solid #f176ae;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  max-width: 320px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  pointer-events: all;
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1);
+  }
+}
+
+.tooltip-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: transparent;
+  border: none;
+  color: #f176ae;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.tooltip-close:hover {
+  color: #e91823;
+}
+
+.tooltip-word {
+  margin: 0 0 0.5rem 0;
+  color: #ffffff;
+  font-size: 1.25rem;
+  font-weight: bold;
+  text-transform: capitalize;
+}
+
+.tooltip-definition {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}

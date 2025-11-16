@@ -1,10 +1,12 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import cytoscape from 'cytoscape'
 import './GraphView.css'
 
 function GraphView({ data }) {
   const containerRef = useRef(null)
   const cyRef = useRef(null)
+  const [selectedNode, setSelectedNode] = useState(null)
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 })
 
   useEffect(() => {
     console.log('🎨 GraphView useEffect triggered', { 
@@ -37,7 +39,8 @@ function GraphView({ data }) {
         data: {
           id: node.id,
           label: node.label,
-          score: node.score
+          score: node.score,
+          definition: node.definition
         }
       })),
       ...data.edges.map(edge => ({
@@ -150,7 +153,7 @@ function GraphView({ data }) {
     // Add hover effects
     cyRef.current.on('mouseover', 'node', function(evt) {
       const node = evt.target
-      node.style('background-color', '#f176ae')
+      node.style('background-color', '#f8bbd7')
     })
 
     cyRef.current.on('mouseout', 'node', function(evt) {
@@ -160,6 +163,34 @@ function GraphView({ data }) {
       else if (score >= 0.85) node.style('background-color', '#f176ae')
       else if (score >= 0.80) node.style('background-color', '#f4bcce')
       else node.style('background-color', '#ae121b')
+    })
+
+    // Add click event to show definition
+    cyRef.current.on('tap', 'node', function(evt) {
+      const node = evt.target
+      const nodeData = node.data()
+      const position = node.renderedPosition()
+      
+      console.log('Node clicked:', nodeData)
+      
+      if (nodeData.definition) {
+        setSelectedNode({
+          label: nodeData.label,
+          definition: nodeData.definition,
+          score: nodeData.score
+        })
+        setTooltipPos({ 
+          x: position.x, 
+          y: position.y - 50 
+        })
+      }
+    })
+
+    // Click on background to close tooltip
+    cyRef.current.on('tap', function(evt) {
+      if (evt.target === cyRef.current) {
+        setSelectedNode(null)
+      }
     })
 
     } catch (error) {
@@ -196,6 +227,27 @@ function GraphView({ data }) {
           <span>Semantic</span>
         </div>
       </div>
+
+      {selectedNode && (
+        <div 
+          className="node-tooltip"
+          style={{
+            position: 'absolute',
+            left: `${tooltipPos.x}px`,
+            top: `${tooltipPos.y}px`,
+            transform: 'translate(-50%, -100%)'
+          }}
+        >
+          <button 
+            className="tooltip-close"
+            onClick={() => setSelectedNode(null)}
+          >
+            ×
+          </button>
+          <h4 className="tooltip-word">{selectedNode.label}</h4>
+          <p className="tooltip-definition">{selectedNode.definition}</p>
+        </div>
+      )}
     </div>
   )
 }

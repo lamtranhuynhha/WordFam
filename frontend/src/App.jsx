@@ -17,7 +17,8 @@ function App() {
     setSelectedWord(word)
 
     try {
-      const url = `http://localhost:8000/api/family?word=${encodeURIComponent(word)}`
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      const url = `${apiUrl}/api/family?word=${encodeURIComponent(word)}`
       console.log('📡 Fetching:', url)
       
       const response = await fetch(url)

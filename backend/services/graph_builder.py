@@ -6,6 +6,7 @@ from .morph_engine import get_morphological_family
 from .wolfram_service import get_wolfram_word_family, get_wolfram_info
 from .datamuse_engine import get_datamuse_related, get_word_forms, check_etymology, validate_word
 from .dictionary_service import get_word_definition
+from .compound_words import get_compound_words, get_all_compounds_containing
 from utils.cache import cached
 import logging
 import asyncio
@@ -133,20 +134,39 @@ async def build_word_family_graph(word: str) -> GraphResponse:
                 f"{stem}ing",     # creating
             ])
         
-        # Validate each variant
-        for variant in variants_to_try:
-            if variant != word:
-                word_exists = await validate_word(variant)
-                if word_exists:
-                    auto_variants.append((variant, 'morphological', 0.92))
-                    logger.info(f"✓ Auto-generated: {variant}")
+        variants_to_check = [v for v in variants_to_try if v != word]
+        validation_tasks = [validate_word(v) for v in variants_to_check]
+        validations = await asyncio.gather(*validation_tasks)
+        
+        for variant, is_valid in zip(variants_to_check, validations):
+            if is_valid:
+                auto_variants.append((variant, 'morphological', 0.92))
+                logger.info(f"✓ Auto-generated: {variant}")
     
     logger.info(f"Generated {len(auto_variants)} automatic variants")
     
-    # Add auto-generated variants to derivations
     for w, rel_type, score in auto_variants:
         if w not in derivations:
             derivations[w] = (score, [rel_type])
+    
+    # Add compound words from hard-coded list (validate in parallel)
+    logger.info(f"Checking compound words for: {word}")
+    compound_words = get_compound_words(word)
+    
+    if compound_words:
+        validation_tasks = [validate_word(c) for c in compound_words]
+        validations = await asyncio.gather(*validation_tasks)
+        
+        compounds_added = 0
+        for compound, is_valid in zip(compound_words, validations):
+            if is_valid and compound not in derivations:
+                derivations[compound] = (0.88, ['compound'])
+                compounds_added += 1
+                logger.info(f"✓ Compound: {compound}")
+    else:
+        compounds_added = 0
+    
+    logger.info(f"Added {compounds_added} compound words")
     
     # Priority 1: WordNet derivations (validated with etymology)
     logger.info(f"Processing {len(wordnet_results)} WordNet results")
@@ -196,43 +216,58 @@ async def build_word_family_graph(word: str) -> GraphResponse:
     # Priority 2: Datamuse API (real words, validated with etymology AND existence)
     logger.info(f"Processing {len(datamuse_results)} Datamuse results")
     datamuse_added = 0
-    max_to_check = 30  # Limit to avoid timeout
-    for w, rel_type, score in datamuse_results[:max_to_check]:
-        if rel_type == 'morphological':
-   
-            word_exists = await validate_word(w)
-            if not word_exists:
-                logger.debug(f"✗ Datamuse: {w} rejected (not a real word)")
-                continue
-            
-            is_derived = await check_etymology(w, word)
-            if is_derived and w not in derivations:
-                derivations[w] = (score, [rel_type])
+    max_to_check = 15  # Reduced for performance
+    
+    datamuse_morphological = [(w, s) for w, rel_type, s in datamuse_results[:max_to_check] if rel_type == 'morphological']
+    datamuse_semantic = [(w, s) for w, rel_type, s in datamuse_results[:max_to_check] if rel_type == 'semantic']
+    
+    # Process morphological in parallel
+    if datamuse_morphological:
+        words_to_check = [w for w, _ in datamuse_morphological]
+        validation_tasks = [validate_word(w) for w in words_to_check]
+        etymology_tasks = [check_etymology(w, word) for w in words_to_check]
+        validations, etymologies = await asyncio.gather(
+            asyncio.gather(*validation_tasks),
+            asyncio.gather(*etymology_tasks)
+        )
+        
+        for (w, score), is_valid, is_derived in zip(datamuse_morphological, validations, etymologies):
+            if is_valid and is_derived and w not in derivations:
+                derivations[w] = (score, ['morphological'])
                 datamuse_added += 1
                 logger.info(f"✓ Datamuse: {w} (score: {score:.2f})")
-        elif rel_type == 'semantic':
-            
-            word_exists = await validate_word(w)
-            if word_exists and w not in synonyms:
+    
+    # Process semantic in parallel
+    if datamuse_semantic:
+        words_to_check = [w for w, _ in datamuse_semantic]
+        validation_tasks = [validate_word(w) for w in words_to_check]
+        validations = await asyncio.gather(*validation_tasks)
+        
+        for (w, score), is_valid in zip(datamuse_semantic, validations):
+            if is_valid and w not in synonyms:
                 semantic_neighbors.append(w)
     
     logger.info(f"Datamuse added {datamuse_added} morphological derivations")
     
     logger.info(f"Processing {len(datamuse_forms)} Datamuse forms")
     forms_added = 0
-    max_forms = 20  
-    for w, rel_type, score in datamuse_forms[:max_forms]:
+    max_forms = 10  # Reduced for performance
+    
+    forms_to_process = datamuse_forms[:max_forms]
+    if forms_to_process:
+        words_to_check = [w for w, _, _ in forms_to_process]
+        validation_tasks = [validate_word(w) for w in words_to_check]
+        etymology_tasks = [check_etymology(w, word) for w in words_to_check]
+        validations, etymologies = await asyncio.gather(
+            asyncio.gather(*validation_tasks),
+            asyncio.gather(*etymology_tasks)
+        )
         
-        word_exists = await validate_word(w)
-        if not word_exists:
-            logger.debug(f"✗ Form: {w} rejected (not a real word)")
-            continue
-            
-        is_derived = await check_etymology(w, word)
-        if is_derived and w not in derivations:
-            derivations[w] = (score, [rel_type])
-            forms_added += 1
-            logger.info(f"✓ Form: {w} (score: {score:.2f})")
+        for (w, rel_type, score), is_valid, is_derived in zip(forms_to_process, validations, etymologies):
+            if is_valid and is_derived and w not in derivations:
+                derivations[w] = (score, [rel_type])
+                forms_added += 1
+                logger.info(f"✓ Form: {w} (score: {score:.2f})")
     
     logger.info(f"Datamuse forms added {forms_added} derivations")
     
@@ -240,30 +275,41 @@ async def build_word_family_graph(word: str) -> GraphResponse:
     logger.info(f"Processing {len(morph_results)} morphology results")
     morph_added = 0
     morph_rejected = 0
-    max_morph = 25  
-    for w, rel_type, score in morph_results[:max_morph]:
-        if w not in derivations and len(w) > 3:
-            
-            word_exists = await validate_word(w)
-            if not word_exists:
-                morph_rejected += 1
-                logger.debug(f"✗ Morph: {w} rejected (not a real word)")
-                continue
-            
-            is_derived = await check_etymology(w, word)
-            if is_derived:
+    max_morph = 15  # Reduced for performance
+    
+    morph_to_process = [(w, rel_type, score) for w, rel_type, score in morph_results[:max_morph] 
+                        if w not in derivations and len(w) > 3]
+    
+    if morph_to_process:
+        words_to_check = [w for w, _, _ in morph_to_process]
+        validation_tasks = [validate_word(w) for w in words_to_check]
+        etymology_tasks = [check_etymology(w, word) for w in words_to_check]
+        validations, etymologies = await asyncio.gather(
+            asyncio.gather(*validation_tasks),
+            asyncio.gather(*etymology_tasks)
+        )
+        
+        for (w, rel_type, score), is_valid, is_derived in zip(morph_to_process, validations, etymologies):
+            if is_valid and is_derived:
                 derivations[w] = (score, [rel_type])
                 morph_added += 1
                 logger.info(f"✓ Morph: {w} (score: {score:.2f})")
+            elif not is_valid:
+                morph_rejected += 1
     
     logger.info(f"Morphology added {morph_added} derivations (rejected {morph_rejected} fake words)")
     
-    # Priority 4: Embeddings (semantic only, also validate)
-    for w, rel_type, score in embedding_results:
-        if score > 0.5 and w not in semantic_neighbors:  # High threshold
-            
-            word_exists = await validate_word(w)
-            if word_exists:
+    # Priority 4: Embeddings (semantic only, also validate in parallel)
+    embedding_candidates = [(w, score) for w, rel_type, score in embedding_results 
+                            if score > 0.5 and w not in semantic_neighbors]
+    
+    if embedding_candidates:
+        words_to_check = [w for w, _ in embedding_candidates]
+        validation_tasks = [validate_word(w) for w in words_to_check]
+        validations = await asyncio.gather(*validation_tasks)
+        
+        for (w, score), is_valid in zip(embedding_candidates, validations):
+            if is_valid:
                 semantic_neighbors.append(w)
 
     # Build nodes from derivations only (word formation tree)

@@ -40,6 +40,7 @@ venv.bak/
 *.swo
 *~
 .DS_Store
+.windsurfrules
 
 # Jupyter Notebook
 .ipynb_checkpoints

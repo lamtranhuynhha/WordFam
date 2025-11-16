@@ -1,20 +1,53 @@
 from typing import List, Tuple
 import re
 
-#manually listed for now
 SUFFIXES = [
-    'ing', 'ed', 'er', 'est', 's', 'es',
-    'tion', 'sion', 'ment', 'ness', 'ity', 'ty',
-    'ly', 'al', 'ous', 'ive', 'ful', 'less',
-    'able', 'ible', 'ant', 'ent', 'ence', 'ance',
-    'y', 'en', 'ize', 'ise', 'ate'
+    # Noun suffixes (person/thing)
+    'er', 'or', 'ar', 'ist', 'ian', 'ant', 'ent', 'ee', 'eer',
+    
+    # Noun suffixes (state/quality)
+    'tion', 'sion', 'ation', 'ition', 'ment', 'ness', 'ity', 'ty', 'ety', 'iety',
+    'ance', 'ence', 'ancy', 'ency', 'dom', 'hood', 'ship', 'age', 'ism',
+    
+    # Adjective suffixes (quality)
+    'ful', 'less', 'ous', 'eous', 'ious', 'uous', 'ive', 'ative', 'itive',
+    'al', 'ial', 'ical', 'ual', 'able', 'ible', 'ent', 'ant',
+    'ic', 'tic', 'ish', 'like', 'y', 'ly',
+    
+    # Adjective suffixes (comparative/superlative)
+    'er', 'est',
+    
+    # Verb suffixes
+    'ize', 'ise', 'ify', 'ate', 'en', 'ing', 'ed',
+    
+    # Adverb suffixes
+    'ly', 'wise', 'ward', 'wards',
+    
+    # Plural/other
+    's', 'es', 'ies'
 ]
 
 PREFIXES = [
-    'un', 're', 'in', 'im', 'il', 'ir', 'dis',
-    'en', 'em', 'non', 'over', 'mis', 'sub',
-    'pre', 'inter', 'fore', 'de', 'trans', 'super',
-    'semi', 'anti', 'mid', 'under', 'pseudo'
+    # Negation prefixes
+    'un', 'in', 'im', 'il', 'ir', 'dis', 'non', 'a', 'an',
+    
+    # Time/order prefixes
+    're', 'pre', 'post', 'fore', 'ante', 'retro',
+    
+    # Number prefixes
+    'uni', 'mono', 'bi', 'di', 'tri', 'quad', 'penta', 'hexa', 'hepta', 'octa', 'multi', 'poly',
+    
+    # Size/degree prefixes
+    'semi', 'micro', 'mini', 'macro', 'mega', 'super', 'ultra', 'hyper', 'over', 'under',
+    
+    # Location prefixes
+    'sub', 'inter', 'intra', 'trans', 'circum', 'peri', 'extra', 'infra', 'supra',
+    
+    # Action/manner prefixes
+    'co', 'com', 'con', 'de', 'en', 'em', 'ex', 'mis', 'out', 'pro',
+    
+    # Other common prefixes
+    'anti', 'auto', 'contra', 'counter', 'mid', 'neo', 'para', 'pseudo', 'tele', 'vice'
 ]
 
 def strip_suffix(word: str) -> str:

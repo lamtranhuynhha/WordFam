@@ -7,7 +7,29 @@ function GraphView({ data }) {
   const cyRef = useRef(null)
 
   useEffect(() => {
-    if (!data || !containerRef.current) return
+    console.log('🎨 GraphView useEffect triggered', { 
+      hasData: !!data, 
+      hasContainer: !!containerRef.current,
+      nodeCount: data?.nodes?.length,
+      edgeCount: data?.edges?.length 
+    })
+
+    if (!data) {
+      console.warn('⚠️ GraphView: No data provided')
+      return
+    }
+
+    if (!containerRef.current) {
+      console.warn('⚠️ GraphView: Container ref not attached')
+      return
+    }
+
+    if (!data.nodes || data.nodes.length === 0) {
+      console.warn('⚠️ GraphView: No nodes in data')
+      return
+    }
+
+    console.log('✅ GraphView: Starting Cytoscape initialization...')
 
     // Transform data to Cytoscape format
     const elements = [
@@ -28,8 +50,16 @@ function GraphView({ data }) {
       }))
     ]
 
+    console.log('📊 Cytoscape elements prepared:', {
+      totalElements: elements.length,
+      nodes: elements.filter(e => !e.data.source).length,
+      edges: elements.filter(e => e.data.source).length
+    })
+
     // Initialize Cytoscape
-    cyRef.current = cytoscape({
+    try {
+      console.log('🚀 Creating Cytoscape instance...')
+      cyRef.current = cytoscape({
       container: containerRef.current,
       elements: elements,
       style: [
@@ -114,6 +144,9 @@ function GraphView({ data }) {
       maxZoom: 3
     })
 
+    console.log('✅ Cytoscape instance created successfully!')
+    console.log('📍 Graph has', cyRef.current.nodes().length, 'nodes and', cyRef.current.edges().length, 'edges')
+
     // Add hover effects
     cyRef.current.on('mouseover', 'node', function(evt) {
       const node = evt.target
@@ -129,8 +162,14 @@ function GraphView({ data }) {
       else node.style('background-color', '#ae121b')
     })
 
+    } catch (error) {
+      console.error('❌ Error creating Cytoscape instance:', error)
+      console.error('Error details:', error.message, error.stack)
+    }
+
     return () => {
       if (cyRef.current) {
+        console.log('🧹 Cleaning up Cytoscape instance')
         cyRef.current.destroy()
       }
     }
@@ -138,7 +177,11 @@ function GraphView({ data }) {
 
   return (
     <div className="graph-view">
-      <div ref={containerRef} className="cytoscape-container" />
+      <div 
+        ref={containerRef} 
+        className="cytoscape-container"
+        style={{ border: '2px solid rgba(241, 118, 174, 0.3)' }}
+      />
       <div className="graph-legend">
         <div className="legend-item">
           <span className="legend-color" style={{ background: '#e91823' }}></span>

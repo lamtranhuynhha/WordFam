@@ -1,0 +1,160 @@
+import { useEffect, useRef } from 'react'
+import cytoscape from 'cytoscape'
+import './GraphView.css'
+
+function GraphView({ data }) {
+  const containerRef = useRef(null)
+  const cyRef = useRef(null)
+
+  useEffect(() => {
+    if (!data || !containerRef.current) return
+
+    // Transform data to Cytoscape format
+    const elements = [
+      ...data.nodes.map(node => ({
+        data: {
+          id: node.id,
+          label: node.label,
+          score: node.score
+        }
+      })),
+      ...data.edges.map(edge => ({
+        data: {
+          id: `${edge.source}-${edge.target}`,
+          source: edge.source,
+          target: edge.target,
+          type: edge.type
+        }
+      }))
+    ]
+
+    // Initialize Cytoscape
+    cyRef.current = cytoscape({
+      container: containerRef.current,
+      elements: elements,
+      style: [
+        {
+          selector: 'node',
+          style: {
+            'background-color': (ele) => {
+              const score = ele.data('score')
+              if (score >= 0.95) return '#e91823'
+              if (score >= 0.85) return '#f176ae'
+              if (score >= 0.80) return '#f4bcce'
+              return '#ae121b'
+            },
+            'label': 'data(label)',
+            'color': '#ffffff',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'font-size': '14px',
+            'font-weight': 'bold',
+            'text-outline-width': 2,
+            'text-outline-color': '#35181c',
+            'width': (ele) => {
+              const score = ele.data('score')
+              return score >= 0.95 ? 60 : 45
+            },
+            'height': (ele) => {
+              const score = ele.data('score')
+              return score >= 0.95 ? 60 : 45
+            },
+            'border-width': 3,
+            'border-color': '#700915',
+            'transition-property': 'background-color, border-color',
+            'transition-duration': '0.3s'
+          }
+        },
+        {
+          selector: 'node:selected',
+          style: {
+            'border-color': '#f176ae',
+            'border-width': 4
+          }
+        },
+        {
+          selector: 'edge',
+          style: {
+            'width': 2,
+            'line-color': (ele) => {
+              const type = ele.data('type')
+              if (type === 'synonym') return '#e91823'
+              if (type === 'morphological') return '#f176ae'
+              if (type === 'semantic') return '#f4bcce'
+              return '#ae121b'
+            },
+            'target-arrow-color': (ele) => {
+              const type = ele.data('type')
+              if (type === 'synonym') return '#e91823'
+              if (type === 'morphological') return '#f176ae'
+              if (type === 'semantic') return '#f4bcce'
+              return '#ae121b'
+            },
+            'target-arrow-shape': 'triangle',
+            'curve-style': 'bezier',
+            'opacity': 0.7
+          }
+        }
+      ],
+      layout: {
+        name: 'cose',
+        animate: true,
+        animationDuration: 1000,
+        nodeRepulsion: 8000,
+        idealEdgeLength: 100,
+        edgeElasticity: 100,
+        nestingFactor: 1.2,
+        gravity: 80,
+        numIter: 1000,
+        initialTemp: 200,
+        coolingFactor: 0.95,
+        minTemp: 1.0
+      },
+      minZoom: 0.5,
+      maxZoom: 3
+    })
+
+    // Add hover effects
+    cyRef.current.on('mouseover', 'node', function(evt) {
+      const node = evt.target
+      node.style('background-color', '#f176ae')
+    })
+
+    cyRef.current.on('mouseout', 'node', function(evt) {
+      const node = evt.target
+      const score = node.data('score')
+      if (score >= 0.95) node.style('background-color', '#e91823')
+      else if (score >= 0.85) node.style('background-color', '#f176ae')
+      else if (score >= 0.80) node.style('background-color', '#f4bcce')
+      else node.style('background-color', '#ae121b')
+    })
+
+    return () => {
+      if (cyRef.current) {
+        cyRef.current.destroy()
+      }
+    }
+  }, [data])
+
+  return (
+    <div className="graph-view">
+      <div ref={containerRef} className="cytoscape-container" />
+      <div className="graph-legend">
+        <div className="legend-item">
+          <span className="legend-color" style={{ background: '#e91823' }}></span>
+          <span>Root/Synonym</span>
+        </div>
+        <div className="legend-item">
+          <span className="legend-color" style={{ background: '#f176ae' }}></span>
+          <span>Morphological</span>
+        </div>
+        <div className="legend-item">
+          <span className="legend-color" style={{ background: '#f4bcce' }}></span>
+          <span>Semantic</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default GraphView

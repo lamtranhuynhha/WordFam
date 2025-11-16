@@ -1,0 +1,104 @@
+.search-bar-container {
+  margin-bottom: 1rem;
+}
+
+.search-form {
+  margin-bottom: 1rem;
+}
+
+.search-input-wrapper {
+  display: flex;
+  gap: 0.75rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.search-input {
+  flex: 1;
+  padding: 1rem 1.5rem;
+  font-size: 1.1rem;
+  border: 2px solid rgba(241, 118, 174, 0.3);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-light);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent-pink);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 4px rgba(241, 118, 174, 0.1);
+}
+
+.search-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.search-button {
+  padding: 1rem 2rem;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(174, 18, 27, 0.3);
+}
+
+.search-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(174, 18, 27, 0.4);
+}
+
+.search-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.search-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.examples {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.examples-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.example-chip {
+  padding: 0.5rem 1rem;
+  background: rgba(241, 118, 174, 0.15);
+  border: 1px solid rgba(241, 118, 174, 0.3);
+  border-radius: 20px;
+  color: var(--accent-light);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.example-chip:hover:not(:disabled) {
+  background: rgba(241, 118, 174, 0.25);
+  border-color: var(--accent-pink);
+  transform: translateY(-1px);
+}
+
+.example-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

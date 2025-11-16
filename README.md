@@ -44,7 +44,7 @@ npm install
 npm run dev
 ```
 
-Frontend runs on `http://localhost:5173`
+Frontend runs on `http://localhost:3000`
 
 ## 📁 Project Structure
 
@@ -117,14 +117,6 @@ Returns word family graph data:
 ## 🧪 Example Queries
 
 - **run** → runner, running, runway, runaway, rerun, overrun
-- **happy** → happiness, happily, happier, unhappy
-- **create** → creation, creator, creative, creature
-
-## 🚧 Known Limitations
-
-- First load may be slower due to embedding model initialization
-- Complex words may have fewer derivations due to performance optimization
-- Some compound words may not be detected if not in database
 
 ## 👥 Team
 
